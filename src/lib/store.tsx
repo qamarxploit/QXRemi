@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEFAULT_SETTINGS, type Birthday, type Reminder, type Settings } from './types';
-import { birthdayAt, effectiveDue, fmtHHMM, turningAge } from './dates';
+import { birthdayAt, effectiveDue, fmtHHMM, nextOccurrence, turningAge } from './dates';
 
 export interface AlertItem {
   key: string;
@@ -435,7 +435,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const now = Date.now();
       setReminders((list) =>
-        list.map((x) => (x.id === id ? { ...x, completed: true, completedAt: now, snoozedUntil: undefined } : x)),
+        list.map((x) => {
+          if (x.id !== id) return x;
+          if (!x.repeat || x.repeat.type === 'none') {
+            return { ...x, completed: true, completedAt: now, snoozedUntil: undefined };
+          }
+          const nx = nextOccurrence({ ...x, snoozedUntil: undefined }, x.at);
+          if (nx && nx > x.at) {
+            return {
+              ...x,
+              at: nx,
+              completed: false,
+              completedAt: undefined,
+              snoozedUntil: undefined,
+              firedDue: undefined,
+              firedAdv: undefined,
+            };
+          }
+          return { ...x, completed: true, completedAt: now, snoozedUntil: undefined };
+        }),
       );
       setAlerts((a) => a.filter((x) => x.refId !== id));
       setQueuedAlerts((q) => q.filter((x) => x.refId !== id));
